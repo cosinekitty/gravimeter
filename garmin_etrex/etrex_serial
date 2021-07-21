@@ -1,0 +1,2 @@
+#!/bin/bash
+picocom --quiet --baud=9600 --flow=none --parity=none --databits=8 --stopbits=1 /dev/ttyUSB0
