@@ -10,6 +10,10 @@ namespace etrex_time
             using (var port = new SerialPortStream("/dev/ttyUSB0", 9600, 8, Parity.None, StopBits.One))
             {
                 port.Open();
+                double minDeltaSeconds = double.MaxValue;
+                double maxDeltaSeconds = double.MinValue;
+                double sumDeltaSeconds = 0.0;
+                int count = 0;
                 string line;
                 while (null != (line = port.ReadLine()))
                 {
@@ -24,7 +28,12 @@ namespace etrex_time
 
                     // Print the discrepancy.
                     TimeSpan dt = gpsTime - now;
-                    Console.WriteLine("{0} {1}", line, dt);
+                    double deltaSeconds = dt.TotalSeconds;
+                    minDeltaSeconds = Math.Min(minDeltaSeconds, deltaSeconds);
+                    maxDeltaSeconds = Math.Max(maxDeltaSeconds, deltaSeconds);
+                    sumDeltaSeconds += deltaSeconds;
+                    ++count;
+                    Console.WriteLine("{0} dt={1,10:F6} min={2,10:F6} max={3,10:F6} avg={4,10:F6}", line, deltaSeconds, minDeltaSeconds, maxDeltaSeconds, sumDeltaSeconds/count);
                 }
             }
             return 0;
