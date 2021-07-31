@@ -122,28 +122,30 @@ public:
 //------------------------------------------------------------------------------------
 
 
-const int PULSE_INPUT_PIN  =  2;    // GPS pulse input
+const int GPS_INPUT_PIN  =  2;    // GPS pulse input
 
-static uint32 _PulseCount;
+static uint32 _GpsPulseCount;
 
-void OnInputPulse()
+void OnGpsPulse()
 {
-    ++_PulseCount;
+    ++_GpsPulseCount;
 }
 
-uint32 PulseCount()
+uint32 GpsPulseCount()
 {
     noInterrupts();
-    uint32 count = _PulseCount;
+    uint32 count = _GpsPulseCount;
     interrupts();
     return count;
 }
 
+//------------------------------------------------------------------------------------
+
 void setup()
 {
-    pinMode(PULSE_INPUT_PIN, INPUT);
+    pinMode(GPS_INPUT_PIN, INPUT);
     Serial.begin(115200);
-    attachInterrupt(digitalPinToInterrupt(PULSE_INPUT_PIN), OnInputPulse, FALLING);
+    attachInterrupt(digitalPinToInterrupt(GPS_INPUT_PIN), OnGpsPulse, FALLING);
 }
 
 void loop()
@@ -160,11 +162,10 @@ void loop()
     }
 }
 
-
 void Report()
 {
     LinePrinter lp;
-    uint32 count = PulseCount();
+    uint32 count = GpsPulseCount();
     lp.PrintLong(count);
     lp.EndLine();
 }
