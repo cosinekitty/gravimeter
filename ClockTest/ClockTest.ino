@@ -11,7 +11,8 @@ typedef unsigned long   uint32;
 
 //------------------------------------------------------------------------------------
 
-const int GPS_INPUT_PIN  =  2;
+const int GPS_INPUT_PIN     =   2;
+const int SHADOW_INPUT_PIN  =   3;
 
 //------------------------------------------------------------------------------------
 
@@ -170,7 +171,7 @@ public:
         prev_pulse_us = pulse_us;
     }
 
-    GpsData Snapshot()
+    GpsData Snapshot() const
     {
         GpsData snap;
 
@@ -182,6 +183,11 @@ public:
 
         return snap;
     }
+
+    uint32 GetCount() const     // should only be called while interrupts are disabled
+    {
+        return count;
+    }
 };
 
 GpsClock TheGpsClock;
@@ -192,6 +198,134 @@ void OnGpsPulse()
 }
 
 //------------------------------------------------------------------------------------
+
+const int RING_BUFFER_SIZE = 20;
+
+#define READ_SHADOW()   ((uint8)digitalRead(SHADOW_INPUT_PIN))
+
+struct ShadowEvent
+{
+    uint8   state;          // 0=LO, 1=HI
+    uint32  gps_count;
+};
+
+class RingBuffer
+{
+private:
+    bool  overflow;
+    uint8 front;
+    uint8 back;
+    uint8 used;
+    uint8 prev_state;
+    ShadowEvent buffer[RING_BUFFER_SIZE];
+
+public:
+    void Reset()
+    {
+        overflow = false;
+        front = back = used = 0;
+        prev_state = READ_SHADOW();
+    }
+
+    void Sample(uint32 gps_count)
+    {
+        if (overflow)
+            return;     // already in a failure state
+
+        uint8 state = READ_SHADOW();
+        if (state != prev_state)
+        {
+            prev_state = state;
+            if (used == RING_BUFFER_SIZE)
+            {
+                // Failure: the ring buffer is full.
+                overflow = true;
+                return;
+            }
+            buffer[back].gps_count = gps_count;
+            buffer[back].state = state;
+            back = (back + 1) % RING_BUFFER_SIZE;
+            ++used;
+        }
+    }
+
+    void Pump()
+    {
+        bool found_event = false;
+        ShadowEvent shadow;
+
+        noInterrupts();
+        bool fail = overflow;
+        if (fail)
+        {
+            Reset();
+        }
+        else
+        {
+            if (used > 0)
+            {
+                found_event = true;
+                shadow = buffer[front];
+                front = (front + 1) % RING_BUFFER_SIZE;
+                --used;
+            }
+        }
+        interrupts();
+
+        LinePrinter lp;
+        if (fail)
+        {
+            lp.Print("@OVERFLOW");
+            lp.EndLine();
+        }
+        else if (found_event)
+        {
+            lp.Print("@e ");     // event line
+            lp.Print(shadow.state ? '1' : '0');
+            lp.Print(' ');
+            lp.PrintLong(shadow.gps_count);
+            lp.EndLine();
+        }
+    }
+};
+
+
+RingBuffer TheRingBuffer;
+bool EnableSampler;
+
+void OnShadowChange()
+{
+    if (EnableSampler)
+    {
+        uint32 gps_count = TheGpsClock.GetCount();
+        TheRingBuffer.Sample(gps_count);
+    }
+}
+
+//------------------------------------------------------------------------------------
+
+void Disable()
+{
+    noInterrupts();
+    EnableSampler = false;
+    interrupts();
+
+    LinePrinter lp;
+    lp.Print("disabled");
+    lp.EndLine();
+}
+
+void Enable()
+{
+    noInterrupts();
+    EnableSampler = true;
+    TheRingBuffer.Reset();
+    interrupts();
+
+    LinePrinter lp;
+    lp.Print("enabled");
+    lp.EndLine();
+}
 
 void Report()
 {
@@ -215,18 +349,34 @@ void Zero()
     Report();
 }
 
+void TestIn()
+{
+    LinePrinter lp;
+    uint8 data = READ_SHADOW();
+    lp.Print(data ? '1' : '0');
+    lp.EndLine();
+}
+
 //------------------------------------------------------------------------------------
 
 void setup()
 {
     Serial.begin(115200);
+
     TheGpsClock.Reset();
     pinMode(GPS_INPUT_PIN, INPUT);
     attachInterrupt(digitalPinToInterrupt(GPS_INPUT_PIN), OnGpsPulse, FALLING);
 
     // Wait for the GPS clock signal to settle down and interval stats to be valid.
     while (!TheGpsClock.IsReady())
-        delay(50);
+        delay(10);
+
+    // Start up with the shadow sampler disabled.
+    EnableSampler = false;
+    TheRingBuffer.Reset();
+    pinMode(SHADOW_INPUT_PIN, INPUT_PULLUP);
+    delay(1);
+    attachInterrupt(digitalPinToInterrupt(SHADOW_INPUT_PIN), OnShadowChange, CHANGE);
 }
 
 void loop()
@@ -236,8 +386,13 @@ void loop()
         char c = Serial.read();
         switch (c)
         {
+        case 'd':   Disable();  break;
+        case 'i':   TestIn();   break;
+        case 'e':   Enable();   break;
         case 'r':   Report();   break;
         case 'z':   Zero();     break;
         }
     }
+
+    TheRingBuffer.Pump();
 }
