@@ -343,9 +343,10 @@ void Zero()
 {
     noInterrupts();
     TheGpsClock.Reset();
+    TheRingBuffer.Reset();
     interrupts();
     while (!TheGpsClock.IsReady())
-        delay(10);
+        delay(1);
     Report();
 }
 
@@ -369,7 +370,7 @@ void setup()
 
     // Wait for the GPS clock signal to settle down and interval stats to be valid.
     while (!TheGpsClock.IsReady())
-        delay(10);
+        delay(1);
 
     // Start up with the shadow sampler disabled.
     EnableSampler = false;
