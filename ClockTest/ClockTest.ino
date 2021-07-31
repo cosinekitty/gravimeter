@@ -121,22 +121,38 @@ public:
 
 //------------------------------------------------------------------------------------
 
-
 const int GPS_INPUT_PIN  =  2;    // GPS pulse input
 
-static uint32 _GpsPulseCount;
+class GpsClock
+{
+private:
+    uint32  count;
+
+public:
+    void Init()
+    {
+        count = 0;
+    }
+
+    void OnPulse()
+    {
+        ++count;
+    }
+
+    uint32 PulseCount() const
+    {
+        noInterrupts();
+        uint32 c = count;
+        interrupts();
+        return c;
+    }
+};
+
+GpsClock TheGpsClock;
 
 void OnGpsPulse()
 {
-    ++_GpsPulseCount;
-}
-
-uint32 GpsPulseCount()
-{
-    noInterrupts();
-    uint32 count = _GpsPulseCount;
-    interrupts();
-    return count;
+    TheGpsClock.OnPulse();
 }
 
 //------------------------------------------------------------------------------------
@@ -165,7 +181,7 @@ void loop()
 void Report()
 {
     LinePrinter lp;
-    uint32 count = GpsPulseCount();
+    uint32 count = TheGpsClock.PulseCount();
     lp.PrintLong(count);
     lp.EndLine();
 }
