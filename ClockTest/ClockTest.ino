@@ -37,7 +37,7 @@ private:
 
     void SendHex(uint8 digit) const
     {
-        if ((digit >= 0) && (digit <= 9))
+        if (digit <= 9)
             Serial.print((char)(digit + '0'));
         else if ((digit >= 0xa) && (digit <= 0xf))
             Serial.print((char)(digit - 0xa + 'a'));
@@ -199,7 +199,9 @@ void OnGpsPulse()
 
 //------------------------------------------------------------------------------------
 
-const int RING_BUFFER_SIZE = 20;
+const uint8 RING_BUFFER_BITS = 5;
+const uint8 RING_BUFFER_SIZE = (1 << RING_BUFFER_BITS);
+const uint8 RING_BUFFER_MASK = RING_BUFFER_SIZE - 1;
 
 #define READ_SHADOW()   ((uint8)digitalRead(SHADOW_INPUT_PIN))
 
@@ -244,7 +246,7 @@ public:
             }
             buffer[back].gps_count = gps_count;
             buffer[back].state = state;
-            back = (back + 1) % RING_BUFFER_SIZE;
+            back = (back + 1) & RING_BUFFER_MASK;
             ++used;
         }
     }
@@ -266,7 +268,7 @@ public:
             {
                 found_event = true;
                 shadow = buffer[front];
-                front = (front + 1) % RING_BUFFER_SIZE;
+                front = (front + 1) % RING_BUFFER_MASK;
                 --used;
             }
         }
@@ -329,8 +331,8 @@ void Enable()
 
 void Report()
 {
-    LinePrinter lp;
     GpsData snap = TheGpsClock.Snapshot();
+    LinePrinter lp;
     lp.PrintLong(snap.count);
     lp.Print(' ');
     lp.PrintLong(snap.min_interval_us);
