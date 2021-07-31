@@ -11,6 +11,10 @@ typedef unsigned long   uint32;
 
 //------------------------------------------------------------------------------------
 
+const int GPS_INPUT_PIN  =  2;
+
+//------------------------------------------------------------------------------------
+
 class LinePrinter   // transmits lines of text and checksums over serial port
 {
 private:
@@ -71,35 +75,6 @@ public:
         }
     }
 
-    void PrintInteger(int16 value)
-    {
-        if (value == 0)
-        {
-            Print('0');
-        }
-        else
-        {
-            if (value < 0)
-            {
-                Print('-');
-                value = -value;
-            }
-
-            bool foundNonZero = false;
-            int16 power = 10000;
-            while (power != 0)
-            {
-                char digit = ((char) ('0' + (value / power)%10));
-                if (foundNonZero || (digit != '0'))
-                {
-                    foundNonZero = true;
-                    Print(digit);
-                }
-                power /= 10;
-            }
-        }
-    }
-
     void PrintLong(uint32 value)
     {
         uint32 power = 1000000000;
@@ -121,30 +96,91 @@ public:
 
 //------------------------------------------------------------------------------------
 
-const int GPS_INPUT_PIN  =  2;    // GPS pulse input
+struct GpsData
+{
+    uint32  count;
+    uint32  min_interval_us;
+    uint32  max_interval_us;
+};
+
 
 class GpsClock
 {
 private:
+    bool    is_first_interval;
     uint32  count;
+    uint32  prev_pulse_us;
+    uint32  min_interval_us;
+    uint32  max_interval_us;
 
 public:
-    void Init()
+    void Reset()
     {
+        is_first_interval = true;
         count = 0;
+        prev_pulse_us = 0;
+        min_interval_us = 0;
+        max_interval_us = 0;
+    }
+
+    bool IsReady() const
+    {
+        noInterrupts();
+        bool ready = !is_first_interval;
+        interrupts();
+        return ready;
     }
 
     void OnPulse()
     {
+        uint32 pulse_us = micros();
         ++count;
+
+        if (is_first_interval && count == 1)
+        {
+            // Do nothing. We need two pulses to begin measuring intervals.
+            // We can't just use 'count == 1' because 32-bit count will eventually roll over.
+        }
+        else
+        {
+            // Use the lower-precision Arduino clock as a sanity check
+            // for the GPS clock. We want to make sure we aren't missing pulses,
+            // so track the minimum and maximum interval in microseconds between
+            // each pulse. If they deviate too much, later I can add code to
+            // signal a failure state (turn on red LED or something like that).
+            uint32 interval = pulse_us - prev_pulse_us;
+
+            if (is_first_interval && count == 2)
+            {
+                // This is the very first interval, so initialize the min and max values.
+                min_interval_us = max_interval_us = interval;
+                is_first_interval = false;
+            }
+            else
+            {
+                // On every subsequent interval, update min and max.
+                if (interval < min_interval_us)
+                    min_interval_us = interval;
+
+                if (interval > max_interval_us)
+                    max_interval_us = interval;
+            }
+        }
+
+        prev_pulse_us = pulse_us;
     }
 
-    uint32 PulseCount() const
+    GpsData Snapshot()
     {
+        GpsData snap;
+
         noInterrupts();
-        uint32 c = count;
+        snap.count = count;
+        snap.min_interval_us = min_interval_us;
+        snap.max_interval_us = max_interval_us;
         interrupts();
-        return c;
+
+        return snap;
     }
 };
 
@@ -157,11 +193,32 @@ void OnGpsPulse()
 
 //------------------------------------------------------------------------------------
 
+void Report()
+{
+    LinePrinter lp;
+    GpsData snap = TheGpsClock.Snapshot();
+    lp.PrintLong(snap.count);
+    lp.Print(' ');
+    lp.PrintLong(snap.min_interval_us);
+    lp.Print(' ');
+    lp.PrintLong(snap.max_interval_us);
+    lp.EndLine();
+}
+
+//------------------------------------------------------------------------------------
+
 void setup()
 {
-    pinMode(GPS_INPUT_PIN, INPUT);
     Serial.begin(115200);
+    TheGpsClock.Reset();
+    pinMode(GPS_INPUT_PIN, INPUT);
     attachInterrupt(digitalPinToInterrupt(GPS_INPUT_PIN), OnGpsPulse, FALLING);
+
+    // Wait for the first pair of pulses (an "interval") before
+    // considering the system fully initialized.
+    // This should never take more than 3 milliseconds.
+    while (!TheGpsClock.IsReady())
+        delay(10);
 }
 
 void loop()
@@ -176,12 +233,4 @@ void loop()
             break;
         }
     }
-}
-
-void Report()
-{
-    LinePrinter lp;
-    uint32 count = TheGpsClock.PulseCount();
-    lp.PrintLong(count);
-    lp.EndLine();
 }
