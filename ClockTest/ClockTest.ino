@@ -103,11 +103,12 @@ struct GpsData
     uint32  max_interval_us;
 };
 
+const uint32 GPS_SETTLE_COUNT = 4;
 
 class GpsClock
 {
 private:
-    bool    is_first_interval;
+    bool    is_initializing;
     uint32  count;
     uint32  prev_pulse_us;
     uint32  min_interval_us;
@@ -116,7 +117,7 @@ private:
 public:
     void Reset()
     {
-        is_first_interval = true;
+        is_initializing = true;
         count = 0;
         prev_pulse_us = 0;
         min_interval_us = 0;
@@ -126,7 +127,7 @@ public:
     bool IsReady() const
     {
         noInterrupts();
-        bool ready = !is_first_interval;
+        bool ready = !is_initializing;
         interrupts();
         return ready;
     }
@@ -136,10 +137,9 @@ public:
         uint32 pulse_us = micros();
         ++count;
 
-        if (is_first_interval && count == 1)
+        if (is_initializing && count < GPS_SETTLE_COUNT)
         {
-            // Do nothing. We need two pulses to begin measuring intervals.
-            // We can't just use 'count == 1' because 32-bit count will eventually roll over.
+            // Do nothing. We wait several pulses before considering the system settled.
         }
         else
         {
@@ -150,11 +150,11 @@ public:
             // signal a failure state (turn on red LED or something like that).
             uint32 interval = pulse_us - prev_pulse_us;
 
-            if (is_first_interval && count == 2)
+            if (is_initializing && count == GPS_SETTLE_COUNT)
             {
                 // This is the very first interval, so initialize the min and max values.
                 min_interval_us = max_interval_us = interval;
-                is_first_interval = false;
+                is_initializing = false;
             }
             else
             {
@@ -205,6 +205,16 @@ void Report()
     lp.EndLine();
 }
 
+void Zero()
+{
+    noInterrupts();
+    TheGpsClock.Reset();
+    interrupts();
+    while (!TheGpsClock.IsReady())
+        delay(10);
+    Report();
+}
+
 //------------------------------------------------------------------------------------
 
 void setup()
@@ -214,11 +224,9 @@ void setup()
     pinMode(GPS_INPUT_PIN, INPUT);
     attachInterrupt(digitalPinToInterrupt(GPS_INPUT_PIN), OnGpsPulse, FALLING);
 
-    // Wait for the first pair of pulses (an "interval") before
-    // considering the system fully initialized.
-    // This should never take more than 3 milliseconds.
+    // Wait for the GPS clock signal to settle down and interval stats to be valid.
     while (!TheGpsClock.IsReady())
-        delay(10);
+        delay(50);
 }
 
 void loop()
@@ -228,9 +236,8 @@ void loop()
         char c = Serial.read();
         switch (c)
         {
-        case 'r':
-            Report();
-            break;
+        case 'r':   Report();   break;
+        case 'z':   Zero();     break;
         }
     }
 }
