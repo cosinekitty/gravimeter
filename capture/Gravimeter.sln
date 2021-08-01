@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30114.105
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GravimeterCapture", "GravimeterCapture\GravimeterCapture.csproj", "{A6FF8614-69B7-4E9B-B1C2-FAE58A63D780}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Capture", "Capture\Capture.csproj", "{A6FF8614-69B7-4E9B-B1C2-FAE58A63D780}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gravimeter", "Gravimeter\Gravimeter.csproj", "{EF7014D9-5541-4462-AC02-780FE8692FD7}"
 EndProject
