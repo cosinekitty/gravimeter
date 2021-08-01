@@ -1,5 +1,10 @@
 /*
-    ClockTest.ino  -  Don Cross  -  2021-07-30
+    gps_clock.ino  -  Don Cross  -  2021-07-30
+
+    Arduino firmware for timing and controlling
+    my gravimetric pendulum project.
+    Uses a Leo Bodnar GPS referenced clock to measure
+    time intervals extremely accurately.
 */
 
 typedef signed char     int8;
