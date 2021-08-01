@@ -21,8 +21,12 @@ GravimeterCapture /dev/{serialport} terminal
             return 1;
         }
 
-        static int RawTerminalSession(string serialport)
+        static int RawTerminalSession(string serialPortPath)
         {
+            using (var gravimeter = new Gravimeter(serialPortPath))
+            {
+
+            }
             return 0;
         }
     }
