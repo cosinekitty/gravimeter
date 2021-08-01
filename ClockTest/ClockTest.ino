@@ -268,7 +268,7 @@ public:
             {
                 found_event = true;
                 shadow = buffer[front];
-                front = (front + 1) % RING_BUFFER_MASK;
+                front = (front + 1) & RING_BUFFER_MASK;
                 --used;
             }
         }
