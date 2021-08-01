@@ -7,7 +7,7 @@ namespace CosineKitty.Gravimetry
         const string UsageText = @"
 USAGE:
 
-GravimeterCapture /dev/{serialport} terminal
+Capture /dev/{serialport} terminal
     Opens a raw terminal session where the user can send
     commands and receive responses from the gravimeter.
 ";
