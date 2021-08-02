@@ -282,12 +282,12 @@ public:
         LinePrinter lp;
         if (fail)
         {
-            lp.Print("@OVERFLOW");
+            lp.Print("! OVERFLOW");
             lp.EndLine();
         }
         else if (found_event)
         {
-            lp.Print("@e ");     // event line
+            lp.Print("e ");     // event line
             lp.Print(shadow.state ? '1' : '0');
             lp.Print(' ');
             lp.PrintLong(shadow.gps_count);
@@ -318,7 +318,7 @@ void Disable()
     interrupts();
 
     LinePrinter lp;
-    lp.Print("disabled");
+    lp.Print("s 0");     // confirm sampler is disabled
     lp.EndLine();
 }
 
@@ -330,7 +330,7 @@ void Enable()
     interrupts();
 
     LinePrinter lp;
-    lp.Print("enabled");
+    lp.Print("s 1");     // confirm sampler is enabled
     lp.EndLine();
 }
 
@@ -338,6 +338,7 @@ void Report()
 {
     GpsData snap = TheGpsClock.Snapshot();
     LinePrinter lp;
+    lp.Print("r ");
     lp.PrintLong(snap.count);
     lp.Print(' ');
     lp.PrintLong(snap.min_interval_us);
@@ -361,6 +362,7 @@ void TestIn()
 {
     LinePrinter lp;
     uint8 data = READ_SHADOW();
+    lp.Print("i ");
     lp.Print(data ? '1' : '0');
     lp.EndLine();
 }
