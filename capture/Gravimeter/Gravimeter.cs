@@ -5,18 +5,18 @@ using RJCP.IO.Ports;
 
 namespace CosineKitty.Gravimetry
 {
-    public delegate void LineReceivedDelegate(string line);
     public delegate void CommFailureDelegate();
+    public delegate void LineReceivedDelegate(string line);
+    public delegate void TimingDelegate(DateTime arrival, uint gps_clock, uint min_us_elapsed, uint max_us_elapsed);
 
     public class Gravimeter : IDisposable
     {
         private SerialPortStream port;
-        private const int BUFFER_LENGTH = 256;
-        private byte[] buffer = new byte[BUFFER_LENGTH];
         private StringBuilder sb = new StringBuilder();
 
         public event LineReceivedDelegate LineReceivedEvent;
         public event CommFailureDelegate CommFailureEvent;
+        public event TimingDelegate TimingEvent;
 
         public Gravimeter(string serialPortPath)
         {
@@ -43,6 +43,7 @@ namespace CosineKitty.Gravimetry
                 char c = (char)port.ReadByte();
                 if (c == '\n' || c == '\r')
                 {
+                    DateTime arrival = DateTime.Now;    // get the most accurate arrival time possible
                     string line = sb.ToString().TrimEnd();
                     if (line.Length > 0)
                     {
@@ -62,6 +63,9 @@ namespace CosineKitty.Gravimetry
                                     valid = true;
                                     if (LineReceivedEvent != null)
                                         LineReceivedEvent(payload);
+
+                                    // Time stamp the message, parse it, and process it.
+                                    ProcessMessage(arrival, payload);
                                 }
                                 else
                                 {
@@ -85,6 +89,26 @@ namespace CosineKitty.Gravimetry
             }
         }
 
+        private void ProcessMessage(DateTime arrival, string payload)
+        {
+            string[] token;
+
+            if (payload.StartsWith("r "))
+            {
+                // r 0001882766 0000000092 0000000108
+                //   gps_clock  min_us     max_us
+                token = payload.Substring(2).Trim().Split();
+                if (token.Length == 3)
+                {
+                    if (uint.TryParse(token[0], out uint gps_clock))
+                        if (uint.TryParse(token[1], out uint min_us_elapsed))
+                            if (uint.TryParse(token[2], out uint max_us_elapsed))
+                                if (TimingEvent != null)
+                                    TimingEvent(arrival, gps_clock, min_us_elapsed, max_us_elapsed);
+                }
+            }
+        }
+
         private static int CalculateChecksum(string text)
         {
             int sum1 = 0xd3;
@@ -100,6 +124,11 @@ namespace CosineKitty.Gravimetry
         public void Write(string s)
         {
             port.Write(s);
+        }
+
+        public void RequestTiming()
+        {
+            Write("r");
         }
     }
 }
