@@ -26,6 +26,7 @@ Capture /dev/{serialport} terminal
             using (var gravimeter = new Gravimeter(serialPortPath))
             {
                 gravimeter.LineReceivedEvent += OnRawTerminalLineReceived;
+                gravimeter.CommFailureEvent += OnRawTerminalCommFailure;
                 string line;
                 while (null != (line = Console.ReadLine()))
                 {
@@ -38,6 +39,11 @@ Capture /dev/{serialport} terminal
         static void OnRawTerminalLineReceived(string line)
         {
             Console.WriteLine("{0}", line);
+        }
+
+        static void OnRawTerminalCommFailure()
+        {
+            Console.WriteLine("!!! COMM FAILURE DETECTED !!!");
         }
     }
 }

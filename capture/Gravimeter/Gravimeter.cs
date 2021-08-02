@@ -1,10 +1,12 @@
 using System;
+using System.Globalization;
 using System.Text;
 using RJCP.IO.Ports;
 
 namespace CosineKitty.Gravimetry
 {
     public delegate void LineReceivedDelegate(string line);
+    public delegate void CommFailureDelegate();
 
     public class Gravimeter : IDisposable
     {
@@ -14,6 +16,7 @@ namespace CosineKitty.Gravimetry
         private StringBuilder sb = new StringBuilder();
 
         public event LineReceivedDelegate LineReceivedEvent;
+        public event CommFailureDelegate CommFailureEvent;
 
         public Gravimeter(string serialPortPath)
         {
@@ -38,11 +41,41 @@ namespace CosineKitty.Gravimetry
             while (port.BytesToRead > 0)
             {
                 char c = (char)port.ReadByte();
-                if (c == '\n')
+                if (c == '\n' || c == '\r')
                 {
-                    if (LineReceivedEvent != null)
-                        LineReceivedEvent(sb.ToString());
+                    string line = sb.ToString().TrimEnd();
+                    if (line.Length > 0)
+                    {
+                        bool valid = false;
+                        int index = line.IndexOf('#');
+                        if (index >= 0)
+                        {
+                            // Verify Fletcher checksum.
+                            // @e 0 0000079275#4ee9
+                            string payload = line.Substring(0, index);
+                            string sumtext = line.Substring(index + 1);
+                            if (int.TryParse(sumtext, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int sentsum))
+                            {
+                                int calcsum = CalculateChecksum(payload);
+                                if (sentsum == calcsum)
+                                {
+                                    valid = true;
+                                    if (LineReceivedEvent != null)
+                                        LineReceivedEvent(payload);
+                                }
+                                else
+                                {
+                                    //Console.WriteLine($"!!! sentsum={sentsum:X}, calcsum={calcsum:X}, line={line}");
+                                }
+                            }
+                        }
 
+                        if (!valid)
+                        {
+                            if (CommFailureEvent != null)
+                                CommFailureEvent();
+                        }
+                    }
                     sb.Clear();
                 }
                 else if (c != '\r')
@@ -50,6 +83,18 @@ namespace CosineKitty.Gravimetry
                     sb.Append(c);
                 }
             }
+        }
+
+        private static int CalculateChecksum(string text)
+        {
+            int sum1 = 0xd3;
+            int sum2 = 0x95;
+            foreach (char c in text)
+            {
+                sum1 = (sum1 + (int)c) % 255;
+                sum2 = (sum2 + sum1) % 255;
+            }
+            return (sum2 << 8) | sum1;
         }
 
         public void Write(string s)
