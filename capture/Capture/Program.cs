@@ -25,9 +25,19 @@ Capture /dev/{serialport} terminal
         {
             using (var gravimeter = new Gravimeter(serialPortPath))
             {
-
+                gravimeter.LineReceivedEvent += OnRawTerminalLineReceived;
+                string line;
+                while (null != (line = Console.ReadLine()))
+                {
+                    gravimeter.Write(line);
+                }
             }
             return 0;
+        }
+
+        static void OnRawTerminalLineReceived(string line)
+        {
+            Console.WriteLine("{0}", line);
         }
     }
 }
