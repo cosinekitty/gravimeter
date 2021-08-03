@@ -43,7 +43,7 @@ namespace CosineKitty.Gravimetry
                 char c = (char)port.ReadByte();
                 if (c == '\n' || c == '\r')
                 {
-                    DateTime arrival = DateTime.Now;    // get the most accurate arrival time possible
+                    DateTime arrival = DateTime.UtcNow;    // get the most accurate arrival time possible
                     string line = sb.ToString().TrimEnd();
                     if (line.Length > 0)
                     {

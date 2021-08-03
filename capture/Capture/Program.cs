@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 
 namespace CosineKitty.Gravimetry
@@ -59,12 +61,27 @@ Capture /dev/{serialport} timing interval_seconds repeat_count
 
         static int TimingTest(string serialPortPath, int interval_seconds, int repeat_count)
         {
+            var list = new List<TimingPoint>();
             using (var gravimeter = new Gravimeter(serialPortPath))
             {
                 bool failure = false;
                 gravimeter.TimingEvent += delegate(DateTime arrival, uint gps_clock, uint min_us_elapsed, uint max_us_elapsed)
                 {
                     Console.WriteLine("{0} {1,10} {2,10} {3,10}", arrival.ToString("o"), gps_clock, min_us_elapsed, max_us_elapsed);
+                    list.Add(new TimingPoint
+                    {
+                        Arrival = arrival,
+                        GpsClock = gps_clock,
+                        MinElapsedMicros = min_us_elapsed,
+                        MaxElapsedMicros = max_us_elapsed,
+                    });
+
+                    if (list.Count > 1)
+                    {
+                        double elapsedSeconds = (list[list.Count - 1].Arrival - list[0].Arrival).TotalSeconds;
+                        uint gpsTicks = list[list.Count - 1].GpsClock - list[0].GpsClock;
+                        Console.WriteLine("ticks/second = {0:F6}", gpsTicks / elapsedSeconds);
+                    }
                 };
 
                 gravimeter.CommFailureEvent += delegate()
@@ -80,7 +97,26 @@ Capture /dev/{serialport} timing interval_seconds repeat_count
                     Thread.Sleep(interval_seconds * 1000);
                 }
             }
+
+            using (StreamWriter output = File.CreateText("capture.csv"))
+            {
+                output.WriteLine("\"utc\",\"seconds\",\"gps_clock\",\"min_elapsed_us\",\"max_elapsed_us\"");
+                foreach (TimingPoint p in list)
+                {
+                    double seconds = (p.Arrival - list[0].Arrival).TotalSeconds;
+                    output.WriteLine($"\"{p.Arrival:o}\",{seconds:F6},{p.GpsClock},{p.MinElapsedMicros},{p.MaxElapsedMicros}");
+                }
+            }
+
             return 0;
         }
+    }
+
+    internal class TimingPoint
+    {
+        public DateTime Arrival;
+        public uint GpsClock;
+        public uint MinElapsedMicros;
+        public uint MaxElapsedMicros;
     }
 }
