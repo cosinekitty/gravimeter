@@ -65,6 +65,19 @@ Capture /dev/{serialport} timing interval_seconds repeat_count
             using (var gravimeter = new Gravimeter(serialPortPath))
             {
                 bool failure = false;
+
+                gravimeter.CommFailureEvent += delegate()
+                {
+                    failure = true;
+                    Console.WriteLine("!!! COMM FAILURE DETECTED !!!");
+                };
+
+                // Reset the time before we begin capturing data.
+                Thread.Sleep(1000);
+                gravimeter.Write("z");
+                Console.WriteLine("Reset completed.");
+                Thread.Sleep(1000);
+
                 gravimeter.TimingEvent += delegate(DateTime arrival, uint gps_clock, uint min_us_elapsed, uint max_us_elapsed)
                 {
                     Console.WriteLine("{0} {1,10} {2,10} {3,10}", arrival.ToString("o"), gps_clock, min_us_elapsed, max_us_elapsed);
@@ -84,13 +97,6 @@ Capture /dev/{serialport} timing interval_seconds repeat_count
                     }
                 };
 
-                gravimeter.CommFailureEvent += delegate()
-                {
-                    failure = true;
-                    Console.WriteLine("!!! COMM FAILURE DETECTED !!!");
-                };
-
-                Thread.Sleep(1000);
                 for (int i = 0; i < repeat_count && !failure; ++i)
                 {
                     gravimeter.RequestTiming();
