@@ -1,0 +1,2 @@
+#!/bin/bash
+bin/Debug/net5.0/Capture /dev/ttyACM0 timing 100 864
